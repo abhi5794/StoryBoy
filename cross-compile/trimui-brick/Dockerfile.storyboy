@@ -116,11 +116,11 @@ RUN wget -q https://libsdl.org/projects/SDL_ttf/release/SDL2_ttf-2.20.2.tar.gz &
         FT2_LIBS="$(pkg-config --libs freetype2)" \
     && make -j$(nproc) install && cd / && rm -rf SDL2_ttf-*
 
-# ---- FFmpeg 7.1.3 — minimal static build ---------------------------------
-# 7.x adds native xHE-AAC/USAC decoding (covers files that returned ENOSYS on 5.x)
-RUN wget -q https://ffmpeg.org/releases/ffmpeg-7.1.3.tar.gz && \
-    tar xf ffmpeg-7.1.3.tar.gz && \
-    cd ffmpeg-7.1.3 && \
+# ---- FFmpeg 8.1 — minimal static build -----------------------------------
+# 8.x has significantly improved xHE-AAC/USAC decoding vs 7.x
+RUN wget -q https://ffmpeg.org/releases/ffmpeg-8.1.tar.gz && \
+    tar xf ffmpeg-8.1.tar.gz && \
+    cd ffmpeg-8.1 && \
     ./configure \
         --arch=aarch64 --target-os=linux \
         --cross-prefix=$CROSS- \
