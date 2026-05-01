@@ -66,6 +66,8 @@ typedef struct {
     double             clock;       /* playback position in seconds (relative to file start) */
     double             start_sec;   /* audio stream start_time converted to seconds; subtracted
                                        from raw PTS so clock is always file-relative (0 = BOF) */
+    int64_t            clock_anchor_pts;     /* stream pts of first frame after last seek */
+    int64_t            clock_anchor_samples; /* total output samples written since anchor */
     SDL_mutex         *clock_mutex;
     int                out_rate;    /* actual SDL device sample rate (may differ from
                                        AUDIO_OUT_RATE if device only supports 44100Hz) */

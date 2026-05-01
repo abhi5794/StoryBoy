@@ -255,10 +255,12 @@ static void filter_and_write(AudioCtx *a, AVFrame *frm, uint8_t **out_buf,
             int bytes = converted * AUDIO_OUT_CHANNELS * 2;
             ring_write(&a->ring, *out_buf, bytes, &a->abort);
 
-            if (flt->pts != AV_NOPTS_VALUE) {
-                double pts = (double)flt->pts *
+            if (a->clock_anchor_pts != AV_NOPTS_VALUE) {
+                double spd = a->filter_speed > 0.001f ? (double)a->filter_speed : 1.0;
+                a->clock_anchor_samples += converted;
+                double pts = (double)a->clock_anchor_pts *
                              av_q2d(a->codec_ctx->pkt_timebase) +
-                             (double)converted / a->out_rate
+                             (double)a->clock_anchor_samples * spd / a->out_rate
                              - a->start_sec;
                 SDL_LockMutex(a->clock_mutex);
                 a->clock = pts;
@@ -329,6 +331,8 @@ static int audio_decode_thread(void *userdata) {
             else
                 atomic_store(&a->clock_seek_active, 0);
             inferred_pts = AV_NOPTS_VALUE;
+            a->clock_anchor_pts     = AV_NOPTS_VALUE;
+            a->clock_anchor_samples = 0;
             log_first_frame = 1;
             continue;
         }
@@ -389,6 +393,8 @@ static int audio_decode_thread(void *userdata) {
                         goto direct_path;
                     }
                 }
+                if (a->clock_anchor_pts == AV_NOPTS_VALUE && frm->pts != AV_NOPTS_VALUE)
+                    a->clock_anchor_pts = frm->pts;
                 filter_and_write(a, frm, &out_buf, &out_buf_size);
                 av_frame_unref(frm);
                 /* Check for new seek before continuing (see flush_gen comment above) */
@@ -419,9 +425,18 @@ static int audio_decode_thread(void *userdata) {
                     ring_write(&a->ring, out_buf, bytes, &a->abort);
 
                     if (frm->pts != AV_NOPTS_VALUE) {
-                        double pts = (double)frm->pts *
+                        /* Anchor-based clock: use pts of first post-seek frame as
+                           the position reference, then advance by actual sample
+                           count.  This handles USAC/xHE-AAC LPD frames (768
+                           samples) where container pts advances by 1024 units —
+                           the per-frame pts drift would otherwise cause the clock
+                           to run ~33% fast on files with LPD content. */
+                        if (a->clock_anchor_pts == AV_NOPTS_VALUE)
+                            a->clock_anchor_pts = frm->pts;
+                        a->clock_anchor_samples += converted;
+                        double pts = (double)a->clock_anchor_pts *
                                      av_q2d(a->codec_ctx->pkt_timebase) +
-                                     (double)converted / a->out_rate
+                                     (double)a->clock_anchor_samples / a->out_rate
                                      - a->start_sec;
                         SDL_LockMutex(a->clock_mutex);
                         a->clock = pts;
@@ -458,6 +473,7 @@ int audio_open(AudioCtx *a, AVCodecParameters *codec_params,
     atomic_store(&a->volume, 1.0f);
     atomic_store(&a->speed,  1.0f);
     atomic_store(&a->clock_seek_active, 0);
+    a->clock_anchor_pts = AV_NOPTS_VALUE;
 
     /* Find and open codec */
     const AVCodec *codec = avcodec_find_decoder(codec_params->codec_id);
