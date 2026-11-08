@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="images/StoryBoy_Icon.png" width="120" alt="StoryBoy icon" />
+  <img src="images/StoryBoy_Icon.png" width="120" alt="StoryBoy icon" /> 
   <h1>StoryBoy</h1>
   <p>Audiobook player for SpruceOS/OnionOS/NextUI handheld devices</p>
 </div>
